@@ -7,8 +7,7 @@ import (
 )
 
 type Address struct {
-	Id        int64
-	Address   string `xorm:"unique index not null varchar(50)"`
+	Address   string `xorm:"unique not null varchar(50)"`
 	Deposit   int    `xorm:"default(0)"`
 	Withdraw  int    `xorm:"default(0)"`
 	LastBlock int32  `xorm:"last_block not null"`
