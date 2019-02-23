@@ -2,6 +2,7 @@ package models
 
 import (
 	"fmt"
+
 	"github.com/syndtr/goleveldb/leveldb"
 )
 
@@ -11,7 +12,7 @@ import (
 // 32 bytes + 4 bytes : 1+
 
 type Tuple struct {
-	Key []byte
+	Key   []byte
 	Value []byte
 }
 
@@ -19,11 +20,11 @@ type CoinDB struct {
 	DB *leveldb.DB
 }
 
-func (db *CoinDB)Batch(set []Tuple)  error {
+func (db *CoinDB) Batch(set []Tuple) error {
 	var err error
 
 	batch := new(leveldb.Batch)
-	for _,item := range set {
+	for _, item := range set {
 		batch.Put(item.Key, item.Value)
 	}
 
@@ -36,7 +37,7 @@ func (db *CoinDB)Batch(set []Tuple)  error {
 	return nil
 }
 
-func (db *CoinDB)Close() {
+func (db *CoinDB) Close() {
 	err := db.DB.Close()
 	if err != nil {
 		fmt.Printf("close leveldb failed: %s\n", err)
@@ -50,6 +51,6 @@ func NewCoinDB(path string) (*CoinDB, error) {
 	}
 
 	return &CoinDB{
-		DB:db,
+		DB: db,
 	}, nil
 }
