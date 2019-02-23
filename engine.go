@@ -4,6 +4,7 @@ import (
 	"encoding/binary"
 	"fmt"
 	"os"
+	"time"
 
 	"github.com/btcsuite/btcd/blockchain"
 	"github.com/btcsuite/btcd/chaincfg"
@@ -35,6 +36,8 @@ func (engine *Engine) start() {
 
 	var height int64
 	for {
+		start := time.Now()
+		rpcT1 := time.Now()
 		blockHash, err := engine.client.GetBlockHash(height)
 		if err != nil {
 			exitFunc(err)
@@ -44,10 +47,9 @@ func (engine *Engine) start() {
 		if err != nil {
 			exitFunc(err)
 		}
+		rpcT2 := time.Now()
 
-		str := fmt.Sprintf("Handle block hash: %s, height: %d, txs: %d", blockHash.String(), height, len(block.Transactions))
-		fmt.Println(tcolor.WithColor(tcolor.Green, str))
-
+		var coinDBT, dbT float64
 		for _, tx := range block.Transactions {
 			batch := make([]models.Tuple, 0, len(tx.TxIn)+len(tx.TxOut))
 			txhash := tx.TxHash()
@@ -55,23 +57,31 @@ func (engine *Engine) start() {
 			if !blockchain.IsCoinBaseTx(tx) {
 				for _, input := range tx.TxIn {
 					key := getKey(&input.PreviousOutPoint)
+					coinDBT1 := time.Now()
 					v, err := engine.coindb.DB.Get(key, nil)
+					coinDBT2 := time.Now()
 					if err == leveldb.ErrNotFound {
 						continue
 					} else if err != nil {
 						exitFunc(err)
 					}
 
+					coinDBT3 := time.Now()
 					err = engine.coindb.DB.Delete(key, nil)
+					coinDBT4 := time.Now()
 					if err != nil {
 						exitFunc(err)
 					}
+					coinDBT += coinDBT2.Sub(coinDBT1).Seconds() + coinDBT4.Sub(coinDBT3).Seconds()
 
+					dbT1 := time.Now()
 					_, err = engine.addrdb.Exec("INSERT INTO address (`address`, `withdraw`, `last_block`) VALUES"+
 						"(?, 1, ?) ON DUPLICATE KEY UPDATE `withdraw` = `withdraw` + 1", string(v), height)
+					dbT2 := time.Now()
 					if err != nil {
 						exitFunc(err)
 					}
+					dbT += dbT2.Sub(dbT1).Seconds()
 				}
 			}
 
@@ -89,19 +99,30 @@ func (engine *Engine) start() {
 						Value: []byte(addrs[0].EncodeAddress()),
 					})
 
+					dbT1 := time.Now()
 					_, err = engine.addrdb.Exec("INSERT INTO address (`address`, `deposit`, `last_block`) VALUES"+
 						"(?, 1, ?) ON DUPLICATE KEY UPDATE `deposit` = `deposit` + 1", addrs[0].EncodeAddress(), height)
+					dbT2 := time.Now()
 					if err != nil {
 						exitFunc(err)
 					}
+					dbT += dbT2.Sub(dbT1).Seconds()
 				}
 			}
 
+			coinDBT1 := time.Now()
 			err = engine.coindb.Batch(batch)
+			coinDBT2 := time.Now()
 			if err != nil {
 				exitFunc(err)
 			}
+			coinDBT += coinDBT2.Sub(coinDBT1).Seconds()
 		}
+
+		end := time.Now()
+		str := fmt.Sprintf("Handled block hash: %s, height: %d, txs: %d, total_time(s): %f, rpc_time(s): %f, coindb_time(s): %f, db_time(s): %f",
+			blockHash.String(), height, len(block.Transactions), end.Sub(start).Seconds(), rpcT2.Sub(rpcT1).Seconds(), coinDBT, dbT)
+		fmt.Println(tcolor.WithColor(tcolor.Green, str))
 
 		// sync the next block
 		height++
