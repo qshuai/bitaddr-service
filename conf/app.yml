@@ -1,0 +1,13 @@
+leveldb:
+  dbpath: db
+
+db:
+  user: root
+  pass: 646689abc
+  host: 127.0.0.1:3306
+  db: bitaddr
+
+rpc:
+  user: root
+  pass: root
+  host: 127.0.0.1:18332
